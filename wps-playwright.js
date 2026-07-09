@@ -1,73 +1,47 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
-const https = require('https');
+const path = require('path');
 
 (async () => {
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({
         viewport: { width: 1280, height: 800 },
-        javaScriptEnabled: true,
-        bypassCSP: true,
+        acceptDownloads: true,        // Important for downloads
     });
 
     const page = await context.newPage();
 
     console.log("Opening WPS Linux site...");
-    await page.goto('https://linux.wps.cn/', { waitUntil: 'domcontentloaded' });
+    await page.goto('https://linux.wps.cn/', { waitUntil: 'networkidle' });
 
     console.log("Clicking 立即下载...");
 
-    // Wait for popup window
-    const [popup] = await Promise.all([
-        context.waitForEvent('page'),
-        page.click('text=立即下载')
-    ]);
+    // Start waiting for the new popup window BEFORE clicking
+    const popupPromise = context.waitForEvent('page');   // or page.waitForEvent('popup')
 
-    console.log("Popup window detected:", popup.url());
+    await page.click('text=立即下载');
 
-    // Wait for the download page to load
+    const popup = await popupPromise;
+    console.log("Popup opened:", popup.url());
+
     await popup.waitForLoadState('domcontentloaded');
 
-    console.log("Looking for 64位 DEB格式 → for X64 button...");
-    await popup.waitForSelector('text=64位 DEB格式');
+    console.log("Looking for 64位 DEB格式 → for X64...");
+    await popup.waitForSelector('text=64位 DEB格式', { timeout: 15000 });
 
-    // Click the "for X64" button
-    const x64Button = popup.locator('text=for X64');
-    await x64Button.click();
+    // Click the X64 button
+    await popup.click('text=for X64', { timeout: 10000 });
 
-    console.log("Waiting for .deb request...");
+    console.log("Waiting for download to start...");
 
-    let debUrl = null;
+    const download = await popup.waitForEvent('download', { timeout: 45000 });
 
-    popup.on('request', req => {
-        const url = req.url();
-        if (url.endsWith('.deb')) {
-            debUrl = url;
-            console.log("Captured .deb URL:", debUrl);
-        }
-    });
+    const filename = download.suggestedFilename();
+    const filePath = path.resolve(process.cwd(), filename);
 
-    // Wait up to 30 seconds for the .deb request
-    for (let i = 0; i < 30; i++) {
-        if (debUrl) break;
-        await popup.waitForTimeout(1000);
-    }
+    console.log(`Downloading: ${filename}`);
+    await download.saveAs(filePath);
 
-    if (!debUrl) {
-        throw new Error("Failed to capture .deb URL.");
-    }
-
-    const filename = debUrl.split('/').pop();
-    const file = fs.createWriteStream(filename);
-
-    console.log("Downloading:", filename);
-    https.get(debUrl, response => {
-        response.pipe(file);
-        file.on('finish', () => {
-            file.close();
-            console.log("Saved:", filename);
-        });
-    });
-
+    console.log(`✅ Saved: ${filePath}`);
     await browser.close();
 })();
