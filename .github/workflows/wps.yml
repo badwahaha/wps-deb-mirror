@@ -1,0 +1,34 @@
+name: WPS Downloader
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"   # run every day at midnight UTC
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Playwright
+        run: |
+          npm install playwright
+
+      - name: Run Playwright downloader
+        run: |
+          node wps-playwright.js
+
+      - name: Upload WPS .deb to GitHub Releases
+        uses: softprops/action-gh-release@v1
+        with:
+          files: "*.deb"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
