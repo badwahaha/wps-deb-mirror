@@ -19,12 +19,13 @@ jobs:
           node-version: 20
 
       - name: Install Playwright
-        run: |
-          npm install playwright
+        run: npm install playwright
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
 
       - name: Run Playwright downloader
-        run: |
-          node wps-playwright.js
+        run: node wps-playwright.js
 
       - name: Upload WPS .deb to GitHub Releases
         uses: softprops/action-gh-release@v1
