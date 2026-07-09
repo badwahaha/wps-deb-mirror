@@ -9,29 +9,19 @@ const https = require('https');
     console.log("Opening official WPS Linux site...");
     await page.goto('https://linux.wps.cn/', { waitUntil: 'networkidle' });
 
-    let debUrl = null;
-
-    // Intercept all network requests
-    page.on('request', request => {
-        const url = request.url();
-        if (url.endsWith('.deb')) {
-            debUrl = url;
-            console.log("Captured WPS .deb URL:", debUrl);
-        }
-    });
-
     console.log("Clicking 立即下载...");
     await page.click('text=立即下载');
 
-    // Wait for the .deb URL to appear
-    for (let i = 0; i < 30; i++) {
-        if (debUrl) break;
-        await page.waitForTimeout(1000);
-    }
+    console.log("Waiting for iframe...");
+    await page.waitForSelector('iframe');
 
-    if (!debUrl) {
-        throw new Error("Failed to capture .deb URL from network requests.");
-    }
+    const frame = page.frameLocator('iframe');
+
+    console.log("Waiting for .deb link inside iframe...");
+    await frame.locator('a[href$=".deb"]').waitFor();
+
+    const debUrl = await frame.locator('a[href$=".deb"]').getAttribute('href');
+    console.log("Found WPS .deb URL:", debUrl);
 
     const filename = debUrl.split('/').pop();
     const file = fs.createWriteStream(filename);
