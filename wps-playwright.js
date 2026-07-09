@@ -6,13 +6,20 @@ const https = require('https');
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
-    console.log("Opening WPS Linux download page...");
-    await page.goto('https://www.wps.com/linux/', { waitUntil: 'networkidle' });
+    console.log("Opening official WPS Linux site...");
+    await page.goto('https://linux.wps.cn/', { waitUntil: 'networkidle' });
 
-    await page.waitForSelector('a[href*=".deb"]');
+    console.log("Clicking 立即下载...");
+    await page.click('text=立即下载');
 
-    const debUrl = await page.$eval('a[href*=".deb"]', el => el.href);
-    console.log("Real WPS .deb URL:", debUrl);
+    // Wait for navigation to the download page
+    await page.waitForLoadState('networkidle');
+
+    console.log("Looking for .deb link...");
+    await page.waitForSelector('a[href$=".deb"]');
+
+    const debUrl = await page.$eval('a[href$=".deb"]', el => el.href);
+    console.log("Found WPS .deb URL:", debUrl);
 
     const filename = debUrl.split('/').pop();
     const file = fs.createWriteStream(filename);
